@@ -562,7 +562,7 @@ async function registerRoutes(httpServer, app2) {
     try {
       const input = api.settings.update.input.parse(req.body);
       const updated = await storage.updateSetting(input);
-      res.json(updated);
+      res.json({ ...updated, value: "\u2022\u2022\u2022\u2022configured\u2022\u2022\u2022\u2022" });
     } catch (err) {
       if (err instanceof z2.ZodError) {
         return res.status(400).json({
