@@ -274,8 +274,8 @@ function getWeekNumber(d) {
 async function fetchDiscordMessages(userId) {
   const token = await storage.getSetting(userId, "discord_token");
   const channelId = await storage.getSetting(userId, "discord_channel_id");
-  if (!token || !channelId || token.value === "********" || channelId.value === "********") {
-    throw new Error("Discord credentials not fully configured");
+  if (!token?.value || !channelId?.value || token.value.includes("\u2022\u2022\u2022\u2022") || channelId.value.includes("\u2022\u2022\u2022\u2022")) {
+    throw new Error("Discord credentials not configured. Please go to Settings and enter your Discord Bot Token and Channel ID first.");
   }
   const client = new Client({
     intents: [
