@@ -550,9 +550,22 @@ async function registerRoutes(httpServer, app2) {
     weeksWithData.sort((a, b) => b - a);
     res.json(weeksWithData);
   });
+  const SENSITIVE_KEYS = ["discord_token", "google_private_key"];
+  function maskValue(key, value) {
+    if (!value) return value;
+    if (SENSITIVE_KEYS.includes(key)) {
+      if (value.length <= 8) return "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+      return "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" + value.slice(-4);
+    }
+    return value;
+  }
   app2.get(api.settings.list.path, async (req, res) => {
     const settings3 = await storage.getSettings();
-    res.json(settings3);
+    const masked = settings3.map((s) => ({
+      ...s,
+      value: maskValue(s.key, s.value)
+    }));
+    res.json(masked);
   });
   app2.post(api.settings.update.path, async (req, res) => {
     try {
@@ -575,7 +588,7 @@ async function registerRoutes(httpServer, app2) {
     if (!setting) {
       return res.status(404).json({ message: "Setting not found" });
     }
-    res.json(setting);
+    res.json({ ...setting, value: maskValue(setting.key, setting.value) });
   });
   return httpServer;
 }

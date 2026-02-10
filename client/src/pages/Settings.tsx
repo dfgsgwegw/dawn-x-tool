@@ -43,8 +43,7 @@ export default function SettingsPage() {
 
   const onSubmit = async (data: ConfigFormValues) => {
     const promises = Object.entries(data).map(([key, value]) => {
-      // Only update if value is not empty (or clear it if intended, but usually we want valid keys)
-      if (value) {
+      if (value && !value.startsWith('••••••••')) {
         return updateSetting.mutateAsync({ key, value });
       }
       return Promise.resolve();
