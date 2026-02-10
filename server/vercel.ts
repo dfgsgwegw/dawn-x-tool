@@ -7,8 +7,8 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-const httpServer = createServer(app);
-registerRoutes(httpServer, app);
+const dummyServer = createServer(app);
+registerRoutes(dummyServer, app);
 
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   const status = err.status || err.statusCode || 500;

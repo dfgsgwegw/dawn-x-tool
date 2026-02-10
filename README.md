@@ -317,7 +317,7 @@ This project includes built-in Vercel support with serverless API functions.
 
 **How it works:**
 - Frontend is built with Vite and served as static files
-- API routes run as Vercel serverless functions (`api/index.mjs`)
+- API routes run as Vercel serverless functions (`api/index.js`)
 - The `vercel.json` handles routing between static files and API
 
 ### Other Platforms

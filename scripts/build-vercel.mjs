@@ -15,17 +15,14 @@ async function buildAll() {
     entryPoints: ["server/vercel.ts"],
     platform: "node",
     bundle: true,
-    format: "esm",
-    outfile: "api/index.mjs",
+    format: "cjs",
+    outfile: "api/index.js",
     alias: {
       "@shared": "./shared",
     },
     packages: "external",
     logLevel: "info",
     target: "node18",
-    banner: {
-      js: 'import { createRequire } from "module"; const require = createRequire(import.meta.url);',
-    },
   });
 
   console.log("Vercel build complete!");
