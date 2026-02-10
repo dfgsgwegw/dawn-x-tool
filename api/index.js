@@ -1,44 +1,17 @@
-"use strict";
-var __create = Object.create;
+import { createRequire } from "module"; const require = createRequire(import.meta.url);
 var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
-var __copyProps = (to, from, except, desc2) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc2 = __getOwnPropDesc(from, key)) || desc2.enumerable });
-  }
-  return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // server/vercel.ts
-var vercel_exports = {};
-__export(vercel_exports, {
-  default: () => vercel_default
-});
-module.exports = __toCommonJS(vercel_exports);
-var import_express = __toESM(require("express"), 1);
-var import_http = require("http");
+import express from "express";
+import { createServer } from "http";
 
 // server/db.ts
-var import_node_postgres = require("drizzle-orm/node-postgres");
-var import_pg = __toESM(require("pg"), 1);
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 
 // shared/schema.ts
 var schema_exports = {};
@@ -48,51 +21,51 @@ __export(schema_exports, {
   settings: () => settings,
   tweets: () => tweets
 });
-var import_pg_core = require("drizzle-orm/pg-core");
-var import_drizzle_zod = require("drizzle-zod");
-var tweets = (0, import_pg_core.pgTable)("tweets", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  discordMessageId: (0, import_pg_core.text)("discord_message_id").notNull().unique(),
-  url: (0, import_pg_core.text)("url").notNull(),
-  tweetId: (0, import_pg_core.text)("tweet_id"),
-  author: (0, import_pg_core.text)("author"),
-  content: (0, import_pg_core.text)("content"),
-  type: (0, import_pg_core.text)("type"),
+import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+var tweets = pgTable("tweets", {
+  id: serial("id").primaryKey(),
+  discordMessageId: text("discord_message_id").notNull().unique(),
+  url: text("url").notNull(),
+  tweetId: text("tweet_id"),
+  author: text("author"),
+  content: text("content"),
+  type: text("type"),
   // 'video', 'photo', 'thread', 'text'
-  views: (0, import_pg_core.integer)("views").default(0),
-  likes: (0, import_pg_core.integer)("likes").default(0),
-  postedAt: (0, import_pg_core.timestamp)("posted_at"),
-  collectedAt: (0, import_pg_core.timestamp)("collected_at").defaultNow(),
-  weekNumber: (0, import_pg_core.integer)("week_number")
+  views: integer("views").default(0),
+  likes: integer("likes").default(0),
+  postedAt: timestamp("posted_at"),
+  collectedAt: timestamp("collected_at").defaultNow(),
+  weekNumber: integer("week_number")
 });
-var settings = (0, import_pg_core.pgTable)("settings", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  key: (0, import_pg_core.text)("key").notNull().unique(),
-  value: (0, import_pg_core.text)("value").notNull()
+var settings = pgTable("settings", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull()
 });
-var insertTweetSchema = (0, import_drizzle_zod.createInsertSchema)(tweets).omit({
+var insertTweetSchema = createInsertSchema(tweets).omit({
   id: true,
   collectedAt: true
 });
-var insertSettingSchema = (0, import_drizzle_zod.createInsertSchema)(settings).omit({
+var insertSettingSchema = createInsertSchema(settings).omit({
   id: true
 });
 
 // server/db.ts
-var { Pool } = import_pg.default;
+var { Pool } = pg;
 if (!process.env.DATABASE_URL) {
   throw new Error(
     "DATABASE_URL must be set. Did you forget to provision a database?"
   );
 }
 var pool = new Pool({ connectionString: process.env.DATABASE_URL });
-var db = (0, import_node_postgres.drizzle)(pool, { schema: schema_exports });
+var db = drizzle(pool, { schema: schema_exports });
 
 // server/storage.ts
-var import_drizzle_orm = require("drizzle-orm");
+import { eq, desc, asc, sql } from "drizzle-orm";
 var DatabaseStorage = class {
   async getTweets(sortBy = "postedAt", order = "desc") {
-    const orderBy = order === "asc" ? import_drizzle_orm.asc : import_drizzle_orm.desc;
+    const orderBy = order === "asc" ? asc : desc;
     let sortColumn = tweets.postedAt;
     if (sortBy === "views") sortColumn = tweets.views;
     if (sortBy === "likes") sortColumn = tweets.likes;
@@ -103,11 +76,11 @@ var DatabaseStorage = class {
     return newTweet;
   }
   async getTweetByUrl(url) {
-    const [tweet] = await db.select().from(tweets).where((0, import_drizzle_orm.eq)(tweets.url, url));
+    const [tweet] = await db.select().from(tweets).where(eq(tweets.url, url));
     return tweet;
   }
   async updateTweetEngagement(url, engagement) {
-    const [updated] = await db.update(tweets).set(engagement).where((0, import_drizzle_orm.eq)(tweets.url, url)).returning();
+    const [updated] = await db.update(tweets).set(engagement).where(eq(tweets.url, url)).returning();
     return updated;
   }
   async createOrUpdateTweet(tweet) {
@@ -126,17 +99,17 @@ var DatabaseStorage = class {
   }
   async deleteOldTweets(currentWeekNumber) {
     const keepFromWeek = currentWeekNumber - 2;
-    await db.delete(tweets).where(import_drizzle_orm.sql`${tweets.weekNumber} < ${keepFromWeek}`);
+    await db.delete(tweets).where(sql`${tweets.weekNumber} < ${keepFromWeek}`);
   }
   async getAvailableWeeks() {
-    const result = await db.selectDistinct({ weekNumber: tweets.weekNumber }).from(tweets).orderBy((0, import_drizzle_orm.desc)(tweets.weekNumber));
+    const result = await db.selectDistinct({ weekNumber: tweets.weekNumber }).from(tweets).orderBy(desc(tweets.weekNumber));
     return result.map((r) => r.weekNumber).filter((w) => w !== null);
   }
   async getSettings() {
     return await db.select().from(settings);
   }
   async getSetting(key) {
-    const [setting] = await db.select().from(settings).where((0, import_drizzle_orm.eq)(settings.key, key));
+    const [setting] = await db.select().from(settings).where(eq(settings.key, key));
     return setting;
   }
   async updateSetting(setting) {
@@ -150,17 +123,17 @@ var DatabaseStorage = class {
 var storage = new DatabaseStorage();
 
 // shared/routes.ts
-var import_zod = require("zod");
+import { z } from "zod";
 var errorSchemas = {
-  validation: import_zod.z.object({
-    message: import_zod.z.string(),
-    field: import_zod.z.string().optional()
+  validation: z.object({
+    message: z.string(),
+    field: z.string().optional()
   }),
-  notFound: import_zod.z.object({
-    message: import_zod.z.string()
+  notFound: z.object({
+    message: z.string()
   }),
-  internal: import_zod.z.object({
-    message: import_zod.z.string()
+  internal: z.object({
+    message: z.string()
   })
 };
 var api = {
@@ -168,19 +141,19 @@ var api = {
     list: {
       method: "GET",
       path: "/api/tweets",
-      input: import_zod.z.object({
-        sortBy: import_zod.z.enum(["views", "likes", "postedAt"]).optional(),
-        order: import_zod.z.enum(["asc", "desc"]).optional()
+      input: z.object({
+        sortBy: z.enum(["views", "likes", "postedAt"]).optional(),
+        order: z.enum(["asc", "desc"]).optional()
       }).optional(),
       responses: {
-        200: import_zod.z.array(import_zod.z.custom())
+        200: z.array(z.custom())
       }
     },
     sync: {
       method: "POST",
       path: "/api/tweets/sync",
       responses: {
-        200: import_zod.z.object({ message: import_zod.z.string(), count: import_zod.z.number() }),
+        200: z.object({ message: z.string(), count: z.number() }),
         500: errorSchemas.internal
       }
     },
@@ -188,7 +161,7 @@ var api = {
       method: "POST",
       path: "/api/tweets/export",
       responses: {
-        200: import_zod.z.object({ message: import_zod.z.string(), spreadsheetUrl: import_zod.z.string().optional() }),
+        200: z.object({ message: z.string(), spreadsheetUrl: z.string().optional() }),
         500: errorSchemas.internal
       }
     }
@@ -198,7 +171,7 @@ var api = {
       method: "GET",
       path: "/api/settings",
       responses: {
-        200: import_zod.z.array(import_zod.z.custom())
+        200: z.array(z.custom())
       }
     },
     update: {
@@ -206,7 +179,7 @@ var api = {
       path: "/api/settings",
       input: insertSettingSchema,
       responses: {
-        200: import_zod.z.custom(),
+        200: z.custom(),
         400: errorSchemas.validation
       }
     },
@@ -214,7 +187,7 @@ var api = {
       method: "GET",
       path: "/api/settings/:key",
       responses: {
-        200: import_zod.z.custom(),
+        200: z.custom(),
         404: errorSchemas.notFound
       }
     }
@@ -222,7 +195,7 @@ var api = {
 };
 
 // server/routes.ts
-var import_zod2 = require("zod");
+import { z as z2 } from "zod";
 
 // server/twitter.ts
 async function fetchTweetDetails(url) {
@@ -267,7 +240,7 @@ async function fetchTweetDetails(url) {
 }
 
 // server/discord.ts
-var import_discord = require("discord.js");
+import { Client, GatewayIntentBits } from "discord.js";
 
 // server/week-utils.ts
 function getWeekBoundaries(date = /* @__PURE__ */ new Date()) {
@@ -298,11 +271,11 @@ async function fetchDiscordMessages() {
   if (!token || !channelId || token.value === "********" || channelId.value === "********") {
     throw new Error("Discord credentials not fully configured");
   }
-  const client = new import_discord.Client({
+  const client = new Client({
     intents: [
-      import_discord.GatewayIntentBits.Guilds,
-      import_discord.GatewayIntentBits.GuildMessages,
-      import_discord.GatewayIntentBits.MessageContent
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent
     ]
   });
   return new Promise((resolve, reject) => {
@@ -370,8 +343,8 @@ async function fetchDiscordMessages() {
 }
 
 // server/google-sheets.ts
-var import_google_spreadsheet = require("google-spreadsheet");
-var import_google_auth_library = require("google-auth-library");
+import { GoogleSpreadsheet } from "google-spreadsheet";
+import { JWT } from "google-auth-library";
 async function exportToSheets(params) {
   const sheetId = await storage.getSetting("google_sheet_id");
   const email = await storage.getSetting("google_service_account_email");
@@ -383,12 +356,12 @@ async function exportToSheets(params) {
   if (missing.length > 0 || !sheetId || !email || !privateKey) {
     throw new Error(`Missing Google Sheets settings: ${missing.join(", ")}. Please configure them in Settings.`);
   }
-  const serviceAccountAuth = new import_google_auth_library.JWT({
+  const serviceAccountAuth = new JWT({
     email: email.value,
     key: privateKey.value.replace(/\\n/g, "\n"),
     scopes: ["https://www.googleapis.com/auth/spreadsheets"]
   });
-  const doc = new import_google_spreadsheet.GoogleSpreadsheet(sheetId.value, serviceAccountAuth);
+  const doc = new GoogleSpreadsheet(sheetId.value, serviceAccountAuth);
   await doc.loadInfo();
   const { weekLabel } = getWeekBoundaries();
   const sheetTitle = `Week ${weekLabel}`;
@@ -587,7 +560,7 @@ async function registerRoutes(httpServer, app2) {
       const updated = await storage.updateSetting(input);
       res.json(updated);
     } catch (err) {
-      if (err instanceof import_zod2.z.ZodError) {
+      if (err instanceof z2.ZodError) {
         return res.status(400).json({
           message: err.errors[0].message,
           field: err.errors[0].path.join(".")
@@ -608,10 +581,10 @@ async function registerRoutes(httpServer, app2) {
 }
 
 // server/vercel.ts
-var app = (0, import_express.default)();
-app.use(import_express.default.json());
-app.use(import_express.default.urlencoded({ extended: false }));
-var dummyServer = (0, import_http.createServer)(app);
+var app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+var dummyServer = createServer(app);
 registerRoutes(dummyServer, app);
 app.use((err, _req, res, _next) => {
   const status = err.status || err.statusCode || 500;
@@ -622,3 +595,6 @@ app.use((err, _req, res, _next) => {
   }
 });
 var vercel_default = app;
+export {
+  vercel_default as default
+};
