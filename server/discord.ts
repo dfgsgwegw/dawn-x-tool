@@ -2,9 +2,9 @@ import { Client, GatewayIntentBits, type TextChannel, type Collection, type Mess
 import { storage } from './storage';
 import { getWeekBoundaries } from './week-utils';
 
-export async function fetchDiscordMessages() {
-  const token = await storage.getSetting('discord_token');
-  const channelId = await storage.getSetting('discord_channel_id');
+export async function fetchDiscordMessages(userId: string) {
+  const token = await storage.getSetting(userId, 'discord_token');
+  const channelId = await storage.getSetting(userId, 'discord_channel_id');
 
   if (!token || !channelId || token.value === '********' || channelId.value === '********') {
     throw new Error('Discord credentials not fully configured');

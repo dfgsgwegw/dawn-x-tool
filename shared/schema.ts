@@ -4,7 +4,8 @@ import { z } from "zod";
 
 export const tweets = pgTable("tweets", {
   id: serial("id").primaryKey(),
-  discordMessageId: text("discord_message_id").notNull().unique(),
+  userId: text("user_id").notNull().default('default'),
+  discordMessageId: text("discord_message_id").notNull(),
   url: text("url").notNull(),
   tweetId: text("tweet_id"),
   author: text("author"),
@@ -19,7 +20,8 @@ export const tweets = pgTable("tweets", {
 
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
-  key: text("key").notNull().unique(),
+  userId: text("user_id").notNull().default('default'),
+  key: text("key").notNull(),
   value: text("value").notNull(),
 });
 

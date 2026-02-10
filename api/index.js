@@ -25,7 +25,8 @@ import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 var tweets = pgTable("tweets", {
   id: serial("id").primaryKey(),
-  discordMessageId: text("discord_message_id").notNull().unique(),
+  userId: text("user_id").notNull().default("default"),
+  discordMessageId: text("discord_message_id").notNull(),
   url: text("url").notNull(),
   tweetId: text("tweet_id"),
   author: text("author"),
@@ -40,7 +41,8 @@ var tweets = pgTable("tweets", {
 });
 var settings = pgTable("settings", {
   id: serial("id").primaryKey(),
-  key: text("key").notNull().unique(),
+  userId: text("user_id").notNull().default("default"),
+  key: text("key").notNull(),
   value: text("value").notNull()
 });
 var insertTweetSchema = createInsertSchema(tweets).omit({
@@ -62,62 +64,66 @@ var pool = new Pool({ connectionString: process.env.DATABASE_URL });
 var db = drizzle(pool, { schema: schema_exports });
 
 // server/storage.ts
-import { eq, desc, asc, sql } from "drizzle-orm";
+import { eq, desc, asc, sql, and } from "drizzle-orm";
 var DatabaseStorage = class {
-  async getTweets(sortBy = "postedAt", order = "desc") {
+  async getTweets(userId, sortBy = "postedAt", order = "desc") {
     const orderBy = order === "asc" ? asc : desc;
     let sortColumn = tweets.postedAt;
     if (sortBy === "views") sortColumn = tweets.views;
     if (sortBy === "likes") sortColumn = tweets.likes;
-    return await db.select().from(tweets).orderBy(orderBy(sortColumn));
+    return await db.select().from(tweets).where(eq(tweets.userId, userId)).orderBy(orderBy(sortColumn));
   }
   async createTweet(tweet) {
     const [newTweet] = await db.insert(tweets).values(tweet).returning();
     return newTweet;
   }
-  async getTweetByUrl(url) {
-    const [tweet] = await db.select().from(tweets).where(eq(tweets.url, url));
+  async getTweetByUrl(userId, url) {
+    const [tweet] = await db.select().from(tweets).where(and(eq(tweets.userId, userId), eq(tweets.url, url)));
     return tweet;
   }
-  async updateTweetEngagement(url, engagement) {
-    const [updated] = await db.update(tweets).set(engagement).where(eq(tweets.url, url)).returning();
+  async updateTweetEngagement(userId, url, engagement) {
+    const [updated] = await db.update(tweets).set(engagement).where(and(eq(tweets.userId, userId), eq(tweets.url, url))).returning();
     return updated;
   }
   async createOrUpdateTweet(tweet) {
-    const [savedTweet] = await db.insert(tweets).values(tweet).onConflictDoUpdate({
-      target: tweets.url,
-      set: {
+    const existing = await this.getTweetByUrl(tweet.userId || "default", tweet.url);
+    if (existing) {
+      const [updated] = await db.update(tweets).set({
         views: tweet.views,
         likes: tweet.likes,
         type: tweet.type,
         weekNumber: tweet.weekNumber,
         author: tweet.author,
         content: tweet.content
-      }
-    }).returning();
-    return savedTweet;
+      }).where(eq(tweets.id, existing.id)).returning();
+      return updated;
+    }
+    const [newTweet] = await db.insert(tweets).values(tweet).returning();
+    return newTweet;
   }
-  async deleteOldTweets(currentWeekNumber) {
+  async deleteOldTweets(userId, currentWeekNumber) {
     const keepFromWeek = currentWeekNumber - 2;
-    await db.delete(tweets).where(sql`${tweets.weekNumber} < ${keepFromWeek}`);
+    await db.delete(tweets).where(and(eq(tweets.userId, userId), sql`${tweets.weekNumber} < ${keepFromWeek}`));
   }
-  async getAvailableWeeks() {
-    const result = await db.selectDistinct({ weekNumber: tweets.weekNumber }).from(tweets).orderBy(desc(tweets.weekNumber));
+  async getAvailableWeeks(userId) {
+    const result = await db.selectDistinct({ weekNumber: tweets.weekNumber }).from(tweets).where(eq(tweets.userId, userId)).orderBy(desc(tweets.weekNumber));
     return result.map((r) => r.weekNumber).filter((w) => w !== null);
   }
-  async getSettings() {
-    return await db.select().from(settings);
+  async getSettings(userId) {
+    return await db.select().from(settings).where(eq(settings.userId, userId));
   }
-  async getSetting(key) {
-    const [setting] = await db.select().from(settings).where(eq(settings.key, key));
+  async getSetting(userId, key) {
+    const [setting] = await db.select().from(settings).where(and(eq(settings.userId, userId), eq(settings.key, key)));
     return setting;
   }
-  async updateSetting(setting) {
-    const [updated] = await db.insert(settings).values(setting).onConflictDoUpdate({
-      target: settings.key,
-      set: { value: setting.value }
-    }).returning();
-    return updated;
+  async updateSetting(userId, setting) {
+    const existing = await this.getSetting(userId, setting.key);
+    if (existing) {
+      const [updated] = await db.update(settings).set({ value: setting.value }).where(eq(settings.id, existing.id)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(settings).values({ ...setting, userId }).returning();
+    return created;
   }
 };
 var storage = new DatabaseStorage();
@@ -265,9 +271,9 @@ function getWeekNumber(d) {
 }
 
 // server/discord.ts
-async function fetchDiscordMessages() {
-  const token = await storage.getSetting("discord_token");
-  const channelId = await storage.getSetting("discord_channel_id");
+async function fetchDiscordMessages(userId) {
+  const token = await storage.getSetting(userId, "discord_token");
+  const channelId = await storage.getSetting(userId, "discord_channel_id");
   if (!token || !channelId || token.value === "********" || channelId.value === "********") {
     throw new Error("Discord credentials not fully configured");
   }
@@ -345,10 +351,10 @@ async function fetchDiscordMessages() {
 // server/google-sheets.ts
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
-async function exportToSheets(params) {
-  const sheetId = await storage.getSetting("google_sheet_id");
-  const email = await storage.getSetting("google_service_account_email");
-  const privateKey = await storage.getSetting("google_private_key");
+async function exportToSheets(userId, params) {
+  const sheetId = await storage.getSetting(userId, "google_sheet_id");
+  const email = await storage.getSetting(userId, "google_service_account_email");
+  const privateKey = await storage.getSetting(userId, "google_private_key");
   const missing = [];
   if (!sheetId) missing.push("Google Sheet ID");
   if (!email) missing.push("Service Account Email");
@@ -376,7 +382,7 @@ async function exportToSheets(params) {
     await sheet.setHeaderRow(["Rank", "Discord Username", "Total Posts", "Total Views", "Avg Views/Post", "Total Likes"]);
   }
   const currentWeekNum = getWeekNumber(/* @__PURE__ */ new Date());
-  const allTweets = await storage.getTweets("views", "desc");
+  const allTweets = await storage.getTweets(userId, "views", "desc");
   let tweetsList = allTweets.filter((t) => t.weekNumber === currentWeekNum);
   if (params?.typeFilter) {
     tweetsList = tweetsList.filter((t) => t.type === params.typeFilter);
@@ -436,20 +442,25 @@ async function exportToSheets(params) {
 }
 
 // server/routes.ts
+function getUserId(req) {
+  return req.headers["x-user-id"] || "default";
+}
 async function registerRoutes(httpServer, app2) {
   app2.get(api.tweets.list.path, async (req, res) => {
+    const userId = getUserId(req);
     const sortBy = req.query.sortBy;
     const order = req.query.order;
     const weekParam = req.query.week;
     const parsed = weekParam ? parseInt(weekParam) : NaN;
     const targetWeek = isNaN(parsed) ? getWeekNumber(/* @__PURE__ */ new Date()) : parsed;
-    const allTweets = await storage.getTweets(sortBy, order);
+    const allTweets = await storage.getTweets(userId, sortBy, order);
     const weekTweets = allTweets.filter((t) => t.weekNumber === targetWeek);
     res.json(weekTweets);
   });
   app2.post(api.tweets.sync.path, async (req, res) => {
+    const userId = getUserId(req);
     try {
-      const linkDataList = await fetchDiscordMessages();
+      const linkDataList = await fetchDiscordMessages(userId);
       console.log(`Found ${linkDataList.length} unique items in Discord`);
       let syncCount = 0;
       for (const linkJson of linkDataList) {
@@ -459,7 +470,7 @@ async function registerRoutes(httpServer, app2) {
           const tweetId = url.match(/status\/(\d+)/)?.[1];
           if (!tweetId) continue;
           const postedAt = new Date(data.postedAt);
-          const existing = await storage.getTweetByUrl(url);
+          const existing = await storage.getTweetByUrl(userId, url);
           let views = 0;
           let likes = 0;
           let tweetType = "text";
@@ -481,6 +492,7 @@ async function registerRoutes(httpServer, app2) {
             await storage.createTweet({
               url,
               tweetId,
+              userId,
               discordMessageId: `discord-${tweetId}`,
               author: tweetAuthor,
               content: tweetContent,
@@ -492,7 +504,7 @@ async function registerRoutes(httpServer, app2) {
             });
             syncCount++;
           } else {
-            await storage.updateTweetEngagement(url, {
+            await storage.updateTweetEngagement(userId, url, {
               likes,
               views,
               type: tweetType,
@@ -504,7 +516,7 @@ async function registerRoutes(httpServer, app2) {
           console.error(`Error processing Discord link:`, tweetErr.message);
         }
       }
-      await storage.deleteOldTweets(getWeekNumber(/* @__PURE__ */ new Date()));
+      await storage.deleteOldTweets(userId, getWeekNumber(/* @__PURE__ */ new Date()));
       res.json({ message: "Sync successful", count: syncCount });
     } catch (err) {
       console.error("Sync error:", err);
@@ -512,13 +524,14 @@ async function registerRoutes(httpServer, app2) {
     }
   });
   app2.post(api.tweets.export.path, async (req, res) => {
+    const userId = getUserId(req);
     try {
       const topN = req.body.topN;
       const sortBy = req.body.sortBy;
       const typeFilter = req.body.typeFilter;
       const minViews = req.body.minViews;
       const minAvgViews = req.body.minAvgViews;
-      const spreadsheetUrl = await exportToSheets({ topN, sortBy, typeFilter, minViews, minAvgViews });
+      const spreadsheetUrl = await exportToSheets(userId, { topN, sortBy, typeFilter, minViews, minAvgViews });
       res.json({ message: "Export successful", spreadsheetUrl });
     } catch (err) {
       console.error("Export error:", err);
@@ -541,9 +554,10 @@ async function registerRoutes(httpServer, app2) {
       res.json({ start: start.toISOString(), end: end.toISOString(), weekLabel, weekNumber });
     }
   });
-  app2.get("/api/available-weeks", async (_req, res) => {
+  app2.get("/api/available-weeks", async (req, res) => {
+    const userId = getUserId(req);
     const currentWeek = getWeekNumber(/* @__PURE__ */ new Date());
-    const weeksWithData = await storage.getAvailableWeeks();
+    const weeksWithData = await storage.getAvailableWeeks(userId);
     if (!weeksWithData.includes(currentWeek)) {
       weeksWithData.unshift(currentWeek);
     }
@@ -551,17 +565,19 @@ async function registerRoutes(httpServer, app2) {
     res.json(weeksWithData);
   });
   app2.get(api.settings.list.path, async (req, res) => {
-    const settings3 = await storage.getSettings();
-    const redacted = settings3.map((s) => ({
+    const userId = getUserId(req);
+    const settingsList = await storage.getSettings(userId);
+    const redacted = settingsList.map((s) => ({
       ...s,
       value: s.value ? "\u2022\u2022\u2022\u2022configured\u2022\u2022\u2022\u2022" : ""
     }));
     res.json(redacted);
   });
   app2.post(api.settings.update.path, async (req, res) => {
+    const userId = getUserId(req);
     try {
       const input = api.settings.update.input.parse(req.body);
-      const updated = await storage.updateSetting(input);
+      const updated = await storage.updateSetting(userId, input);
       res.json({ ...updated, value: "\u2022\u2022\u2022\u2022configured\u2022\u2022\u2022\u2022" });
     } catch (err) {
       if (err instanceof z2.ZodError) {
@@ -574,8 +590,9 @@ async function registerRoutes(httpServer, app2) {
     }
   });
   app2.get(api.settings.get.path, async (req, res) => {
+    const userId = getUserId(req);
     const key = req.params.key;
-    const setting = await storage.getSetting(key);
+    const setting = await storage.getSetting(userId, key);
     if (!setting) {
       return res.status(404).json({ message: "Setting not found" });
     }

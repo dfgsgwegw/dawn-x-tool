@@ -11,10 +11,10 @@ interface ExportParams {
   minAvgViews?: number;
 }
 
-export async function exportToSheets(params?: ExportParams) {
-  const sheetId = await storage.getSetting('google_sheet_id');
-  const email = await storage.getSetting('google_service_account_email');
-  const privateKey = await storage.getSetting('google_private_key');
+export async function exportToSheets(userId: string, params?: ExportParams) {
+  const sheetId = await storage.getSetting(userId, 'google_sheet_id');
+  const email = await storage.getSetting(userId, 'google_service_account_email');
+  const privateKey = await storage.getSetting(userId, 'google_private_key');
 
   const missing: string[] = [];
   if (!sheetId) missing.push('Google Sheet ID');
@@ -48,7 +48,7 @@ export async function exportToSheets(params?: ExportParams) {
   }
 
   const currentWeekNum = getWeekNumber(new Date());
-  const allTweets = await storage.getTweets('views', 'desc');
+  const allTweets = await storage.getTweets(userId, 'views', 'desc');
   let tweetsList = allTweets.filter(t => t.weekNumber === currentWeekNum);
 
   if (params?.typeFilter) {

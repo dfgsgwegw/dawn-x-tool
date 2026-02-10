@@ -8,26 +8,31 @@ import { fetchDiscordMessages } from "./discord";
 import { getWeekBoundaries, getWeekNumber } from "./week-utils";
 import { exportToSheets } from "./google-sheets";
 
+function getUserId(req: any): string {
+  return (req.headers['x-user-id'] as string) || 'default';
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
   app.get(api.tweets.list.path, async (req, res) => {
+    const userId = getUserId(req);
     const sortBy = req.query.sortBy as 'views' | 'likes' | 'postedAt' | undefined;
     const order = req.query.order as 'asc' | 'desc' | undefined;
     const weekParam = req.query.week as string | undefined;
     const parsed = weekParam ? parseInt(weekParam) : NaN;
     const targetWeek = isNaN(parsed) ? getWeekNumber(new Date()) : parsed;
-    const allTweets = await storage.getTweets(sortBy, order);
+    const allTweets = await storage.getTweets(userId, sortBy, order);
     const weekTweets = allTweets.filter(t => t.weekNumber === targetWeek);
     res.json(weekTweets);
   });
 
   app.post(api.tweets.sync.path, async (req, res) => {
+    const userId = getUserId(req);
     try {
-      // 1. Fetch URLs from Discord (returns JSON strings with metadata)
-      const linkDataList = await fetchDiscordMessages();
+      const linkDataList = await fetchDiscordMessages(userId);
       console.log(`Found ${linkDataList.length} unique items in Discord`);
       
       let syncCount = 0;
@@ -39,10 +44,8 @@ export async function registerRoutes(
           if (!tweetId) continue;
 
           const postedAt = new Date(data.postedAt);
+          const existing = await storage.getTweetByUrl(userId, url);
 
-          const existing = await storage.getTweetByUrl(url);
-
-          // Fetch metrics from FxTwitter (free, no key needed)
           let views = 0;
           let likes = 0;
           let tweetType: string = 'text';
@@ -66,6 +69,7 @@ export async function registerRoutes(
             await storage.createTweet({
               url,
               tweetId,
+              userId,
               discordMessageId: `discord-${tweetId}`,
               author: tweetAuthor,
               content: tweetContent,
@@ -77,7 +81,7 @@ export async function registerRoutes(
             });
             syncCount++;
           } else {
-            await storage.updateTweetEngagement(url, {
+            await storage.updateTweetEngagement(userId, url, {
               likes,
               views,
               type: tweetType,
@@ -90,9 +94,7 @@ export async function registerRoutes(
         }
       }
 
-      // 2. Cleanup old data
-      await storage.deleteOldTweets(getWeekNumber(new Date()));
-
+      await storage.deleteOldTweets(userId, getWeekNumber(new Date()));
       res.json({ message: "Sync successful", count: syncCount });
     } catch (err: any) {
       console.error('Sync error:', err);
@@ -101,13 +103,14 @@ export async function registerRoutes(
   });
 
   app.post(api.tweets.export.path, async (req, res) => {
+    const userId = getUserId(req);
     try {
       const topN = req.body.topN as number | undefined;
       const sortBy = req.body.sortBy as string | undefined;
       const typeFilter = req.body.typeFilter as string | undefined;
       const minViews = req.body.minViews as number | undefined;
       const minAvgViews = req.body.minAvgViews as number | undefined;
-      const spreadsheetUrl = await exportToSheets({ topN, sortBy, typeFilter, minViews, minAvgViews });
+      const spreadsheetUrl = await exportToSheets(userId, { topN, sortBy, typeFilter, minViews, minAvgViews });
       res.json({ message: "Export successful", spreadsheetUrl });
     } catch (err: any) {
       console.error('Export error:', err);
@@ -115,7 +118,6 @@ export async function registerRoutes(
     }
   });
 
-  // Week routes
   app.get('/api/week-info', async (req, res) => {
     const weekParam = req.query.week as string | undefined;
     const weekNum = weekParam ? parseInt(weekParam) : NaN;
@@ -133,9 +135,10 @@ export async function registerRoutes(
     }
   });
 
-  app.get('/api/available-weeks', async (_req, res) => {
+  app.get('/api/available-weeks', async (req, res) => {
+    const userId = getUserId(req);
     const currentWeek = getWeekNumber(new Date());
-    const weeksWithData = await storage.getAvailableWeeks();
+    const weeksWithData = await storage.getAvailableWeeks(userId);
     if (!weeksWithData.includes(currentWeek)) {
       weeksWithData.unshift(currentWeek);
     }
@@ -146,8 +149,9 @@ export async function registerRoutes(
   // Settings routes
 
   app.get(api.settings.list.path, async (req, res) => {
-    const settings = await storage.getSettings();
-    const redacted = settings.map(s => ({
+    const userId = getUserId(req);
+    const settingsList = await storage.getSettings(userId);
+    const redacted = settingsList.map(s => ({
       ...s,
       value: s.value ? '••••configured••••' : '',
     }));
@@ -155,9 +159,10 @@ export async function registerRoutes(
   });
 
   app.post(api.settings.update.path, async (req, res) => {
+    const userId = getUserId(req);
     try {
       const input = api.settings.update.input.parse(req.body);
-      const updated = await storage.updateSetting(input);
+      const updated = await storage.updateSetting(userId, input);
       res.json({ ...updated, value: '••••configured••••' });
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -171,8 +176,9 @@ export async function registerRoutes(
   });
 
   app.get(api.settings.get.path, async (req, res) => {
+    const userId = getUserId(req);
     const key = req.params.key as string;
-    const setting = await storage.getSetting(key);
+    const setting = await storage.getSetting(userId, key);
     if (!setting) {
       return res.status(404).json({ message: 'Setting not found' });
     }
@@ -181,4 +187,3 @@ export async function registerRoutes(
 
   return httpServer;
 }
-
