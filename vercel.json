@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "buildCommand": "node scripts/build-vercel.mjs",
+  "outputDirectory": "dist/public",
+  "functions": {
+    "api/index.mjs": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.mjs" },
+    { "source": "/(.*)", "destination": "/$1" }
+  ]
+}
