@@ -2,38 +2,33 @@
 
 A full-stack web application that tracks and analyzes tweets (X posts) shared in Discord channels. It automatically syncs tweet URLs from a configured Discord channel, fetches detailed engagement metrics using the free FxTwitter API, and provides a dashboard for viewing and exporting the collected data.
 
+---
+
 ## Features
 
-- **Automatic Tweet Collection** - Syncs tweet URLs posted in a Discord channel
+- **Automatic Tweet Collection** - Syncs tweet/X URLs posted in a Discord channel
 - **Engagement Metrics** - Fetches views, likes, and tweet type (photo, video, thread, text) via FxTwitter API (free, no API key needed)
 - **Weekly Leaderboards** - Groups data by week (Friday 3:00 UTC to Friday 3:00 UTC)
 - **User Rankings** - Ranks users by total views, average views per post, likes, or post count
 - **Advanced Filtering** - Filter by top N users, minimum total views, minimum average views, and tweet type
+- **Multi-Week Navigation** - Browse current and past weeks with arrow navigation
 - **CSV Export** - Download leaderboard data as CSV
 - **Google Sheets Export** - Push leaderboard data directly to Google Sheets
+- **Per-Browser Isolation** - Each browser gets its own independent workspace with separate settings and data
 - **Responsive Dashboard** - Clean UI with stats cards, expandable user rows, and tweet details
+- **3-Week Data Retention** - Keeps current week + 2 previous weeks of data
 
 ## Tech Stack
 
 - **Frontend**: React + TypeScript, Vite, Tailwind CSS, Shadcn/ui, TanStack React Query
 - **Backend**: Node.js, Express.js, TypeScript
 - **Database**: PostgreSQL with Drizzle ORM
-- **APIs**: Discord.js, FxTwitter API, Google Sheets API
+- **APIs**: Discord.js, FxTwitter API (free), Google Sheets API
+- **Deployment**: Vercel (serverless)
 
 ---
 
-## Prerequisites
-
-Before setting up, you need:
-
-1. **Node.js 20+** installed
-2. **PostgreSQL** database (local or hosted like Neon, Supabase, Railway)
-3. **Discord Bot** (free - setup instructions below)
-4. **Google Cloud Service Account** (free - optional, only for Google Sheets export)
-
----
-
-## Setup Guide
+## Quick Start
 
 ### 1. Clone and Install
 
@@ -49,17 +44,11 @@ Create a `.env` file in the root directory:
 
 ```env
 DATABASE_URL=postgresql://username:password@host:port/database
-PORT=5000
 ```
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `PORT` | No | Server port (defaults to 5000) |
+You need a PostgreSQL database. Free options include [Neon](https://neon.tech), [Supabase](https://supabase.com), or [Railway](https://railway.app).
 
 ### 3. Initialize Database
-
-Push the database schema:
 
 ```bash
 npm run db:push
@@ -67,278 +56,200 @@ npm run db:push
 
 ### 4. Run the App
 
-**Development:**
 ```bash
 npm run dev
 ```
 
-**Production build:**
-```bash
-npm run build
-npm start
-```
-
 The app will be available at `http://localhost:5000`.
-
-### 5. Configure Settings (In-App)
-
-Open the app in your browser and go to **Settings** page to enter:
-
-- Discord Bot Token
-- Discord Channel ID
-- Google Sheets credentials (optional)
 
 ---
 
 ## Discord Bot Setup (Free)
 
+This is the most important part. The bot reads messages from your Discord channel to find tweet links.
+
 ### Step 1: Create a Discord Application
 
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Click **"New Application"** and give it a name (e.g., "Dawn X Tracker")
-3. Click **Create**
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Click **"New Application"**.
+3. Give it a name (e.g., "Dawn X Tracker") and click **Create**.
 
-### Step 2: Create a Bot
+### Step 2: Create the Bot and Get the Token
 
-1. In your application, go to the **"Bot"** tab on the left sidebar
-2. Click **"Add Bot"** and confirm
-3. Under the bot's username, click **"Reset Token"** to generate a new token
-4. **Copy the token** - you'll need this for the app settings
-5. **Important**: Under "Privileged Gateway Intents", enable:
-   - **Message Content Intent** (required to read message content)
-   - **Server Members Intent** (optional)
+1. In your new application, go to the **"Bot"** tab on the left sidebar.
+2. Click **"Reset Token"** to generate a bot token.
+3. **Copy the token immediately** and save it somewhere safe. You won't be able to see it again.
+4. Keep the bot **private** - make sure "Public Bot" is **unchecked** so only you can add it to servers.
 
-### Step 3: Invite the Bot to Your Server
+### Step 3: Enable Required Permissions (Important!)
 
-1. Go to the **"OAuth2"** tab, then **"URL Generator"**
-2. Under **Scopes**, check: `bot`
-3. Under **Bot Permissions**, check:
-   - `Read Messages/View Channels`
-   - `Read Message History`
-4. Copy the generated URL and open it in your browser
-5. Select your Discord server and authorize the bot
+Still on the **Bot** tab, scroll down to **"Privileged Gateway Intents"** and enable:
 
-### Step 4: Get Your Channel ID
+| Intent | Required? | Why |
+|--------|-----------|-----|
+| **Message Content Intent** | **YES - Required** | The bot needs this to read message content and find tweet/X links |
+| **Server Members Intent** | Optional | Can help with user identification |
+| **Presence Intent** | Optional | Not used, but doesn't hurt to enable |
 
-1. In Discord, go to **Settings > Advanced** and enable **"Developer Mode"**
-2. Right-click on the channel where tweets are posted
-3. Click **"Copy Channel ID"**
+> **If you skip enabling Message Content Intent, the bot will not be able to read any messages and syncing will return 0 results.**
 
-### Step 5: Enter Credentials in the App
+### Step 4: Generate the Bot Invite Link
 
-1. Open the Dawn X Tool in your browser
-2. Go to the **Settings** page
-3. Paste the **Bot Token** and **Channel ID**
-4. Click **Save Configuration**
+1. Go to the **"OAuth2"** tab on the left sidebar.
+2. Click on **"URL Generator"**.
+3. Under **Scopes**, check: `bot`
+4. Under **Bot Permissions**, check these two permissions:
 
-### How the Bot Works
+| Permission | Why |
+|------------|-----|
+| **Read Messages / View Channels** | So the bot can see the channel you want to monitor |
+| **Read Message History** | So the bot can scroll back through past messages to find tweet links |
 
-- The bot is **not always online** - it only connects when you click "Sync Now"
-- Each sync fetches **all messages from the current week** (Friday 3:00 UTC okonward), paginating through as many as needed
-- It extracts all `x.com` and `twitter.com` links from messages
-- For each tweet URL found, it fetches engagement data from FxTwitter API
-- New tweets are saved to the database with the current week number
-- Duplicate tweets (same URL) are automatically skipped
+5. Copy the **generated URL** at the bottom of the page.
 
----
+### Step 5: Add the Bot to Your Server
 
-## Google Sheets Export Setup (Free, Optional)
+1. Open the copied URL in your browser.
+2. Select the Discord server where your tweet channel is.
+3. Click **Authorize** and complete the captcha.
+4. The bot should now appear in your server's member list (it will show as offline - that's normal, it only connects when syncing).
 
-### Step 1: Create a Google Cloud Project
+### Step 6: Get Your Channel ID
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project (or select existing one)
-3. Enable the **Google Sheets API**:
-   - Go to **APIs & Services > Library**
-   - Search for "Google Sheets API"
-   - Click **Enable**
+1. Open Discord and go to **User Settings** (gear icon next to your username).
+2. Go to **Advanced** and turn on **"Developer Mode"**.
+3. Close settings, then **right-click on the channel** where tweets are posted.
+4. Click **"Copy Channel ID"**.
 
-### Step 2: Create a Service Account
+### Step 7: Enter Credentials in the App
 
-1. Go to **APIs & Services > Credentials**
-2. Click **"Create Credentials" > "Service Account"**
-3. Give it a name (e.g., "dawn-x-sheets")
-4. Click **Create and Continue**, then **Done**
-5. Click on the service account you just created
-6. Go to the **"Keys"** tab
-7. Click **"Add Key" > "Create new key"**
-8. Select **JSON** and click **Create**
-9. A JSON file will download - keep it safe
-
-### Step 3: Create a Google Sheet
-
-1. Create a new Google Sheet at [sheets.google.com](https://sheets.google.com)
-2. Copy the **Sheet ID** from the URL: `https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit`
-3. **Share the sheet** with your service account email (found in the JSON file as `client_email`), give it **Editor** access
-
-### Step 4: Enter Credentials in the App
-
-1. Open the Dawn X Tool **Settings** page
-2. Enter:
-   - **Google Sheet ID** - the ID from the spreadsheet URL
-   - **Service Account Email** - the `client_email` from the JSON key file
-   - **Service Account Private Key** - the `private_key` from the JSON key file (starts with `-----BEGIN PRIVATE KEY-----`)
-3. Click **Save Configuration**
-
-### How Export Works
-
-- Click **Google Sheets** on the dashboard to open the export dialog
-- Choose filters (top N users, minimum views, tweet type, etc.)
-- Click **Export** - data is pushed to a new tab in your Google Sheet
-- Each week gets its own tab named by the week date range
+1. Open the Dawn X Tool in your browser.
+2. Go to the **Settings** page (gear icon in the sidebar).
+3. Paste your **Bot Token** in the Discord Bot Token field.
+4. Paste your **Channel ID** in the Discord Channel ID field.
+5. Click **"Save Configuration"**.
+6. Go back to the **Dashboard** and click the **Sync** button.
 
 ---
 
-## How the App Works
+## How It Works
 
-### Weekly Rotation
+1. **Sync** - When you click Sync, the bot logs into Discord, scans the configured channel for messages from the current week, and extracts any twitter.com or x.com links.
+2. **Enrich** - For each tweet link found, it calls the free FxTwitter API to get engagement metrics (views, likes, tweet type, author, content).
+3. **Store** - All data is saved to PostgreSQL, tagged with the current week number and your browser's unique ID.
+4. **Display** - The dashboard shows a leaderboard ranking users by their tweet engagement, with expandable rows to see individual tweets.
+5. **Rotate** - Data older than 3 weeks is automatically cleaned up during sync.
 
-- Data is organized by week: **Friday 3:00 UTC to Friday 3:00 UTC**
-- The dashboard shows the current week's data by default, with tabs to view the previous 2 weeks
-- Data is kept for **3 weeks** (current + 2 previous) - older data is automatically cleaned up during sync
+### Week System
 
-### Syncing Process
+- Weeks run from **Friday 3:00 UTC** to **Friday 3:00 UTC**.
+- You can navigate between weeks using the left/right arrows on the dashboard.
+- The current week is always available even if no data has been synced yet.
 
-When you click **"Sync Now"**:
+### Per-Browser Isolation
 
-1. The Discord bot logs in and scans all messages from the current week in the configured channel (paginates through as many as needed, not limited to 100)
-2. Tweet URLs (x.com and twitter.com links) are extracted from messages
-3. For each new tweet URL, the FxTwitter API is called to fetch:
-   - View count
-   - Like count
-   - Tweet type (photo, video, thread, or text)
-   - Author username
-   - Tweet content
-   - Posted date
-4. Data is saved to the database with the current week number
-5. Duplicate tweets are automatically skipped
-
-### Dashboard
-
-- **Stats Cards** - Total tweets, views, likes, and unique users for the current week
-- **Leaderboard Table** - Users ranked by total views (default)
-- **Expandable Rows** - Click a user to see their individual tweets
-- **Sorting** - Sort by total views, average views, likes, or posts
-- **Filtering** - Filter by tweet type, search by user/content
-- **Top N** - Show only top 3, 5, 10, 25, 50, or custom number of users
-
-### FxTwitter API
-
-This app uses the [FxTwitter API](https://github.com/FixTweet/FxTwitter) which is:
-- **Completely free** - no API key or authentication required
-- **No API key needed** - rate limits may apply for very heavy usage
-- Provides tweet views, likes, content, media type, and more
-- Alternative to the paid Twitter/X API
+- Each browser generates a unique ID on first visit (stored in localStorage).
+- All data (settings, tweets, leaderboards) is tied to that browser ID.
+- Different browsers or devices will each have their own independent workspace.
+- Clearing browser data / localStorage will create a new workspace.
 
 ---
 
-## Project Structure
+## Google Sheets Export (Optional)
 
-```
-dawn-x-tool/
-├── client/                    # Frontend (React + Vite)
-│   ├── index.html             # HTML entry point
-│   ├── public/                # Static assets (favicon, etc.)
-│   └── src/
-│       ├── pages/             # Page components
-│       │   ├── Dashboard.tsx   # Main dashboard with leaderboard
-│       │   └── Settings.tsx    # Configuration page
-│       ├── components/        # Reusable UI components
-│       │   ├── Layout.tsx     # App shell with sidebar
-│       │   ├── StatsCard.tsx  # Statistics display card
-│       │   └── ui/            # Shadcn UI primitives
-│       ├── hooks/             # Custom React hooks
-│       │   ├── use-tweets.ts  # Tweet data fetching
-│       │   ├── use-settings.ts # Settings management
-│       │   └── use-toast.ts   # Toast notifications
-│       ├── lib/               # Utilities
-│       └── App.tsx            # Root component with routing
-├── server/                    # Backend (Express.js)
-│   ├── index.ts               # Server entry point
-│   ├── routes.ts              # API route handlers
-│   ├── storage.ts             # Database access layer
-│   ├── db.ts                  # PostgreSQL connection
-│   ├── discord.ts             # Discord bot integration
-│   ├── twitter.ts             # FxTwitter API client
-│   ├── google-sheets.ts       # Google Sheets export
-│   ├── week-utils.ts          # Week boundary calculations
-│   └── vite.ts                # Vite dev server integration
-├── shared/                    # Shared between frontend & backend
-│   ├── schema.ts              # Database schema (Drizzle ORM)
-│   └── routes.ts              # API route type definitions
-├── script/
-│   └── build.ts               # Production build script
-├── scripts/
-│   └── build-vercel.mjs       # Vercel-specific build script
-├── drizzle.config.ts          # Drizzle ORM configuration
-├── tailwind.config.ts         # Tailwind CSS configuration
-├── vite.config.ts             # Vite build configuration
-├── vercel.json                # Vercel deployment configuration
-├── tsconfig.json              # TypeScript configuration
-└── package.json               # Dependencies and scripts
+If you want to export leaderboard data to Google Sheets:
+
+### Step 1: Create a Google Cloud Service Account
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com).
+2. Create a new project (or select an existing one).
+3. Go to **APIs & Services > Library** and enable the **Google Sheets API**.
+4. Go to **IAM & Admin > Service Accounts**.
+5. Click **"Create Service Account"**, give it a name, and click **Create**.
+6. Skip the optional permissions steps and click **Done**.
+7. Click on your new service account, go to the **"Keys"** tab.
+8. Click **"Add Key" > "Create new key"** and choose **JSON**.
+9. A JSON file will download. Open it and find these two values:
+   - `client_email` (looks like `something@project-id.iam.gserviceaccount.com`)
+   - `private_key` (starts with `-----BEGIN PRIVATE KEY-----`)
+
+### Step 2: Set Up Your Google Sheet
+
+1. Create a new Google Sheet (or use an existing one).
+2. **Share the sheet** with your service account email (the `client_email` from the JSON file). Give it **Editor** access.
+3. Copy the **Sheet ID** from the URL: `https://docs.google.com/spreadsheets/d/THIS_IS_THE_SHEET_ID/edit`
+
+### Step 3: Enter Credentials in the App
+
+1. Go to **Settings** in the Dawn X Tool.
+2. Enter the **Google Sheet ID**, **Service Account Email**, and **Private Key**.
+3. Click **Save Configuration**.
+4. On the Dashboard, use the **Export to Sheets** button to push data.
+
+---
+
+## Deployment on Vercel
+
+This app is pre-configured for Vercel deployment.
+
+### Setup
+
+1. Push your code to GitHub.
+2. Go to [Vercel](https://vercel.com) and import your GitHub repository.
+3. Add the `DATABASE_URL` environment variable in Vercel project settings (use a cloud PostgreSQL like [Neon](https://neon.tech)).
+4. Deploy.
+
+### How Vercel Deployment Works
+
+- The frontend is built with Vite and served as static files from `dist/public/`.
+- The backend runs as a Vercel serverless function from `api/index.js`.
+- The `vercel.json` routes `/api/*` requests to the serverless function and everything else to the frontend.
+
+### Build for Vercel Locally
+
+```bash
+node scripts/build-vercel.mjs
 ```
 
----
-
-## API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/tweets` | Get all tweets for current week |
-| `POST` | `/api/tweets/sync` | Sync tweets from Discord |
-| `POST` | `/api/tweets/export` | Export to Google Sheets |
-| `GET` | `/api/settings` | Get all settings |
-| `POST` | `/api/settings` | Update a setting |
-| `GET` | `/api/settings/:key` | Get a single setting |
-| `GET` | `/api/week-info` | Get current week boundaries |
+This will:
+1. Build the frontend with Vite
+2. Run database migrations
+3. Bundle the API into `api/index.js`
 
 ---
 
-## Deployment Options
-
-### Vercel (Recommended)
-
-This project includes built-in Vercel support with serverless API functions.
-
-**Steps:**
-
-1. Push your code to GitHub
-2. Go to [vercel.com](https://vercel.com) and import your GitHub repository
-3. Vercel will auto-detect the configuration from `vercel.json`
-4. Add these **Environment Variables** in the Vercel dashboard:
-   - `DATABASE_URL` - Your PostgreSQL connection string (use [Neon](https://neon.tech), [Supabase](https://supabase.com), or [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres))
-5. Click **Deploy**
-6. After deploying, run the database schema push:
-   ```bash
-   # Locally, with your production DATABASE_URL:
-   DATABASE_URL="your_production_db_url" npm run db:push
-   ```
-7. Open your deployed app and configure Discord/Google Sheets credentials in **Settings**
-
-**How it works:**
-- Frontend is built with Vite and served as static files
-- API routes run as Vercel serverless functions (`api/index.js`)
-- The `vercel.json` handles routing between static files and API
-
-### Other Platforms
-
-This app also works on traditional Node.js hosting platforms:
+## Other Deployment Options
 
 | Platform | Free Tier | Database Included | Notes |
 |----------|-----------|-------------------|-------|
-| [Railway](https://railway.app) | $5 free credits | Yes (PostgreSQL) | Easiest full-stack deployment |
-| [Render](https://render.com) | Yes | Yes (PostgreSQL, 90 days free) | Good free option |
+| [Vercel](https://vercel.com) | Yes | No (use Neon) | Recommended, pre-configured |
+| [Railway](https://railway.app) | $5 free credits | Yes (PostgreSQL) | Easiest full-stack |
+| [Render](https://render.com) | Yes | Yes (PostgreSQL, 90 days) | Good free option |
 | [Fly.io](https://fly.io) | Yes | Yes (PostgreSQL) | More technical setup |
 | [Replit](https://replit.com) | Yes | Yes (PostgreSQL) | One-click deployment |
 
-**For traditional platforms:**
+For traditional Node.js platforms, set:
+- **Build command**: `npm run build`
+- **Start command**: `npm start`
+- **Environment variable**: `DATABASE_URL`
 
-1. Push your code to GitHub
-2. Connect your GitHub repo to your chosen platform
-3. Set the **build command**: `npm run build`
-4. Set the **start command**: `npm start` or `node dist/index.cjs`
-5. Add the `DATABASE_URL` environment variable
-6. Deploy
+---
+
+## Dashboard Features
+
+### Leaderboard
+- Users ranked by total views (default), with columns for post count, total views, average views per post, and total likes.
+- Click on a user row to expand and see their individual tweets with links, views, likes, and type.
+
+### Filters
+- **Top N Users** - Show only the top N users (with custom number input).
+- **Min Total Views** - Filter out users below a minimum total view count.
+- **Min Avg Views** - Filter out users below a minimum average views per post.
+- **Tweet Type** - Filter by tweet type (text, photo, video, thread).
+
+### Export Options
+- **CSV** - Downloads a CSV file with the current leaderboard data.
+- **Google Sheets** - Pushes data to a configured Google Sheet with the same filter options.
 
 ---
 
@@ -346,11 +257,25 @@ This app also works on traditional Node.js hosting platforms:
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start development server (frontend + backend with hot reload) |
+| `npm run dev` | Start development server with hot reload |
 | `npm run build` | Build for production |
 | `npm start` | Start production server |
 | `npm run db:push` | Push database schema changes |
 | `npm run check` | Run TypeScript type checking |
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| Sync returns 0 tweets | Make sure **Message Content Intent** is enabled in the Discord Developer Portal under Bot > Privileged Gateway Intents |
+| Bot can't see the channel | Check that the bot has **Read Messages** and **Read Message History** permissions, and that it's been added to the correct server |
+| "Discord credentials not configured" | Go to Settings and enter your Bot Token and Channel ID, then click Save |
+| Settings don't persist | Make sure you're not in a private/incognito window (localStorage is needed) |
+| Google Sheets export fails | Make sure you shared the spreadsheet with the service account email as Editor |
+| Different data in different browsers | This is by design - each browser has its own independent workspace |
+| Bot shows offline in Discord | That's normal. The bot only connects briefly when you click Sync, then disconnects |
 
 ---
 
