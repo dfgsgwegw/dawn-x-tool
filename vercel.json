@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "node scripts/build-vercel.mjs",
+  "buildCommand": "npx vite build && npx drizzle-kit push",
   "outputDirectory": "dist/public",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
