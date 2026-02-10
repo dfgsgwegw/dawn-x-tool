@@ -145,24 +145,13 @@ export async function registerRoutes(
 
   // Settings routes
 
-  const SENSITIVE_KEYS = ['discord_token', 'google_private_key'];
-
-  function maskValue(key: string, value: string): string {
-    if (!value) return value;
-    if (SENSITIVE_KEYS.includes(key)) {
-      if (value.length <= 8) return '••••••••';
-      return '••••••••' + value.slice(-4);
-    }
-    return value;
-  }
-
   app.get(api.settings.list.path, async (req, res) => {
     const settings = await storage.getSettings();
-    const masked = settings.map(s => ({
+    const redacted = settings.map(s => ({
       ...s,
-      value: maskValue(s.key, s.value),
+      value: s.value ? '••••configured••••' : '',
     }));
-    res.json(masked);
+    res.json(redacted);
   });
 
   app.post(api.settings.update.path, async (req, res) => {
@@ -187,7 +176,7 @@ export async function registerRoutes(
     if (!setting) {
       return res.status(404).json({ message: 'Setting not found' });
     }
-    res.json({ ...setting, value: maskValue(setting.key, setting.value) });
+    res.json({ ...setting, value: setting.value ? '••••configured••••' : '' });
   });
 
   return httpServer;
