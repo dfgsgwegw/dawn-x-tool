@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const IGNORE_PATTERNS = [
-  'node_modules', 'dist', 'api', '.DS_Store', 'server/public',
+  'node_modules', 'dist', '.DS_Store', 'server/public',
   '.replit', 'replit.md', '.cache', '.local', '.upm',
   'attached_assets', 'generated-icon.png', '.config',
   '.env', '.git', '*.log', '/tmp', '.vscode', '.idea',
