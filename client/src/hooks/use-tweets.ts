@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type Tweet } from "@shared/routes";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 export function useTweets(sortBy: 'views' | 'likes' | 'postedAt' = 'postedAt', order: 'asc' | 'desc' = 'desc', weekNumber?: number) {
@@ -10,8 +11,7 @@ export function useTweets(sortBy: 'views' | 'likes' | 'postedAt' = 'postedAt', o
       if (weekNumber !== undefined) {
         params.set('week', String(weekNumber));
       }
-      const res = await fetch(`${api.tweets.list.path}?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch tweets");
+      const res = await apiRequest("GET", `${api.tweets.list.path}?${params}`);
       return api.tweets.list.responses[200].parse(await res.json());
     },
   });
@@ -22,8 +22,7 @@ export function useWeekInfo(weekNumber?: number) {
     queryKey: ['/api/week-info', weekNumber],
     queryFn: async () => {
       const params = weekNumber !== undefined ? `?week=${weekNumber}` : '';
-      const res = await fetch(`/api/week-info${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch week info");
+      const res = await apiRequest("GET", `/api/week-info${params}`);
       return res.json() as Promise<{ start: string; end: string; weekLabel: string; weekNumber: number }>;
     },
   });
@@ -33,8 +32,7 @@ export function useAvailableWeeks() {
   return useQuery({
     queryKey: ['/api/available-weeks'],
     queryFn: async () => {
-      const res = await fetch('/api/available-weeks', { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch available weeks");
+      const res = await apiRequest("GET", '/api/available-weeks');
       return res.json() as Promise<number[]>;
     },
   });
@@ -46,11 +44,7 @@ export function useSyncTweets() {
 
   return useMutation({
     mutationFn: async () => {
-      const res = await fetch(api.tweets.sync.path, {
-        method: api.tweets.sync.method,
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to sync tweets");
+      const res = await apiRequest(api.tweets.sync.method, api.tweets.sync.path);
       return api.tweets.sync.responses[200].parse(await res.json());
     },
     onSuccess: (data) => {
@@ -77,11 +71,7 @@ export function useExportTweets() {
 
   return useMutation({
     mutationFn: async () => {
-      const res = await fetch(api.tweets.export.path, {
-        method: api.tweets.export.method,
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to export tweets");
+      const res = await apiRequest(api.tweets.export.method, api.tweets.export.path);
       return api.tweets.export.responses[200].parse(await res.json());
     },
     onSuccess: (data) => {

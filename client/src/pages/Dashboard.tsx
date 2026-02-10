@@ -1,6 +1,7 @@
 import { useState, useMemo, Fragment } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTweets, useSyncTweets, useWeekInfo, useAvailableWeeks } from "@/hooks/use-tweets";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/Layout";
 import { StatsCard } from "@/components/StatsCard";
@@ -167,17 +168,7 @@ export default function Dashboard() {
 
   const sheetsExportMutation = useMutation({
     mutationFn: async (params: { topN?: number; sortBy?: string; typeFilter?: string; minViews?: number; minAvgViews?: number }) => {
-      const res = await fetch(api.tweets.export.path, {
-        method: api.tweets.export.method,
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(params),
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        const msg = errorData?.message || "Failed to export tweets";
-        throw new Error(msg);
-      }
+      const res = await apiRequest(api.tweets.export.method, api.tweets.export.path, params);
       return api.tweets.export.responses[200].parse(await res.json());
     },
     onSuccess: (data) => {
