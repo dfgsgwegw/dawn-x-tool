@@ -442,8 +442,11 @@ async function exportToSheets(userId, params) {
 }
 
 // server/routes.ts
+import crypto from "crypto";
 function getUserId(req) {
-  return req.headers["x-user-id"] || "default";
+  const header = req.headers["x-user-id"];
+  if (header && header.length > 8) return header;
+  return `anon-${crypto.randomUUID()}`;
 }
 async function registerRoutes(httpServer, app2) {
   app2.get(api.tweets.list.path, async (req, res) => {

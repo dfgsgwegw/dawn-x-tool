@@ -8,8 +8,12 @@ import { fetchDiscordMessages } from "./discord";
 import { getWeekBoundaries, getWeekNumber } from "./week-utils";
 import { exportToSheets } from "./google-sheets";
 
+import crypto from 'crypto';
+
 function getUserId(req: any): string {
-  return (req.headers['x-user-id'] as string) || 'default';
+  const header = req.headers['x-user-id'] as string;
+  if (header && header.length > 8) return header;
+  return `anon-${crypto.randomUUID()}`;
 }
 
 export async function registerRoutes(
