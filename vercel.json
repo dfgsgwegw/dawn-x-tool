@@ -1,9 +1,9 @@
 {
   "version": 2,
-  "buildCommand": "node scripts/build-vercel.mjs",
+  "buildCommand": "npx vite build",
   "outputDirectory": "dist/public",
   "functions": {
-    "api/index.js": {
+    "api/index.ts": {
       "maxDuration": 30
     }
   },
