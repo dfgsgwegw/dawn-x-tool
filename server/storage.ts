@@ -6,7 +6,7 @@ import {
   type InsertTweet,
   type Setting,
   type InsertSetting
-} from "@shared/schema";
+} from "../shared/schema";
 import { eq, desc, asc, sql } from "drizzle-orm";
 
 export interface IStorage {
